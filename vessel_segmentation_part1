@@ -1,0 +1,76 @@
+import numpy as np
+import cv2
+
+####normalizing image
+def normalize(img):
+    max_val=np.amax(img)
+    r,c=img.shape
+    for i in xrange(r):
+        for j in xrange(c):
+            if (img[i][j]==0):
+                img[i][j]=0;
+            else:
+                img[i][j]=img[i][j]/max_val
+
+
+    return(img)
+
+####getDoG
+def getDoG(img,sigma,onoff,sigmaRatio,width,th):
+    ##create diff of Gaussian kernal
+    sz=(sigma*3)*2+1
+    g1 = fspecial((sz,sz),sigma)
+    g2 = fspecial((sz,sz),sigma*sigmaRatio);
+
+    if (onoff==1):
+        G=g2-g1;  ### difference of guassians
+    else:
+        G=g1-g2;
+
+    print(np.amax(G))
+    
+       
+    dst = cv2.filter2D(img*255,-1,G) ###convolution of image
+    return(dst)
+
+def DoGBankResponse(img,params_sigmalist,params_polaritylist):
+    sz1,sz2=img.shape;
+    DoGBank=np.zeros((sz1,sz2,params_sigmalist,params_polaritylist),dtype=np.uint8)
+    for i in xrange(params_sigmalist):
+        for j in xrange(params_polaritylist):
+            DoGBank[:,:,i,j]=getDoG(img,3,1,0.5,0,0)  ########change paramenters
+            cv2.namedWindow('w', cv2.WINDOW_NORMAL)
+            cv2.imshow("w",DoGBank[:,:,i,j]); 
+    #print(DoGBank[:,:,0,0].shape)
+    #cv2.namedWindow('w', cv2.WINDOW_NORMAL)
+    #cv2.imshow("w",DoGBank[:,:,0,0]);  
+ #   return(DoGBank);
+
+
+
+def fspecial(shape,sigma):
+    """
+    2D gaussian mask - should give the same result as MATLAB's
+    fspecial('gaussian',[shape],[sigma])
+    """
+    m,n = [(ss-1.)/2. for ss in shape]
+    y,x = np.ogrid[-m:m+1,-n:n+1]
+    h = np.exp( -(x*x + y*y) / (2.*sigma*sigma) )
+    h[ h < np.finfo(h.dtype).eps*h.max() ] = 0
+    sumh = h.sum()
+    if sumh != 0:
+        h /= sumh
+    return h    
+    
+
+####proto type pattern
+
+x=100;
+y=100;
+line1=np.zeros((201,201), dtype=np.uint8);
+line1[:,x]=255;
+line2=normalize(line1);
+
+DoGBankResponse(line2,1,1)
+
+cv2.waitKey(0);
