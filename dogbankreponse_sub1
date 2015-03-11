@@ -1,0 +1,146 @@
+import numpy as np
+import cv2
+import math
+
+def params():
+    params={'ht':1,'COSFIRE':{'rholist':[0,2,4,6,8],'eta':[2.6180],'t1':[0],'t2':[0.4],'sigma0':[0.5],'alpha':[0.1333],\
+                          'mintupleweight':[0.5],'ouputfunction':'geomentricmean','blurringfuction':'max',\
+                          'weightingsigma':[6.7946],'t3':[0]},'invariance':{'rotation':{'psilist':[0,0.261799387799149,\
+                                                                                               0.523598775598299,0.785398163397448,1.04719755119660,\
+                                                                                               1.30899693899575,1.57079632679490,1.83259571459405,\
+                                                                                               2.09439510239320,2.35619449019235,2.61799387799149,\
+                                                                                               2.87979326579064]},'scale':{'upsilonlist':1},'reflection':0}\
+        ,'detection':{'mindistance':8},'inputfilter':{'name':'DoG','DoG':{'polaritylist':[1],'sigmalist':[2.4],'sigmaratio':[0.5],'halfwaverct':[0]}},'symmetric':1}
+
+    return(params)
+
+
+
+
+####normalizing image
+def normalize(img):
+    max_val=np.amax(img)
+    r,c=img.shape
+    for i in xrange(r):
+        for j in xrange(c):
+            if (img[i][j]==0):
+                img[i][j]=0;
+            else:
+                img[i][j]=img[i][j]/max_val
+
+
+    return(img)
+
+####getDoG
+def getDoG(img,sigma,onoff,sigmaRatio,width,th):
+    ##create diff of Gaussian kernal
+    sz=(sigma*3)*2+1
+    g1 = fspecial((sz,sz),sigma)
+    g2 = fspecial((sz,sz),sigma*sigmaRatio);
+
+    if (onoff==1):
+        G=g2-g1;  ### difference of guassians
+    else:
+        G=g1-g2;
+
+    print(np.amax(G))
+    
+       
+    dst = cv2.filter2D(img*255,-1,G) ###convolution of image
+    return(dst)
+
+
+###dog bank response
+
+def DoGBankResponse(img,params):
+    sz1,sz2=img.shape;
+    #print(len(params['sigmalist']))
+    #params_sigmalist=1
+    #params_polaritylist=1
+    print(params['sigmaratio'])
+    DoGBank=np.zeros((sz1,sz2,len(params['sigmalist']),len(params['polaritylist'])),dtype=np.uint8)
+    for i in xrange(len(params['sigmalist'])):
+        for j in xrange(len(params['polaritylist'])):
+           DoGBank[:,:,i,j]=getDoG(img,params['sigmalist'][i],params['polaritylist'][i],params['sigmaratio'][i],0,params['halfwaverct'][i])  ########change paramenters
+           
+    
+    return(DoGBank)
+
+def fspecial(shape,sigma):
+    """
+    2D gaussian mask - should give the same result as MATLAB's
+    fspecial('gaussian',[shape],[sigma])
+    """
+    m,n = [(ss-1.)/2. for ss in shape]
+    y,x = np.ogrid[-m:m+1,-n:n+1]
+    h = np.exp( -(x*x + y*y) / (2.*sigma*sigma) )
+    h[ h < np.finfo(h.dtype).eps*h.max() ] = 0
+    sumh = h.sum()
+    if sumh != 0:
+        h /= sumh
+    return h
+
+###get cosfire tuples
+def getcosfiretuples(inp,keypoint,params):
+    sz1,sz2,sz3,sz4=inp.shape;
+
+    maxrho=np.amax(params['COSFIRE']['rholist'])
+    SupportRadius=maxrho+((params['COSFIRE']['sigma0'])+((params['COSFIRE']['alpha'])*maxrho)*3);
+
+    ####enlarge input area
+    biginput=np.zeros((sz1 + (2*SupportRadius),sz2 + (2*SupportRadius),sz3,sz4),dtype=np.uint8)
+    biginput[SupportRadius+1:-SupportRadius,SupportRadius+1:-SupportRadius,:,:] = inp;
+    keypoint = keypoint + SupportRadius;
+    biginput[biginput < params['COSFIRE']['t2'][0]*np.amax(biginput)] = 0;
+    maxInput = (np.reshape(biginput,(sz1+(2*SupportRadius),sz2+(2*SupportRadius))))#,prod(sz(3:end))),[],3);
+
+
+    #for i in xrange(len(params['COSFIRE']['rholist'])):
+       # tup=getTuples(biginput,maxInput,keypoint,params['COSFIRE']['rholist'][i],params)
+        
+        
+    
+#####configure cosfire
+def configureCOSFIRE(featureImage,keypoint,params):
+    inp=DoGBankResponse(featureImage,params['inputfilter']['DoG']);
+    getcosfiretuples(inp,keypoint,params)
+    cv2.namedWindow('w', cv2.WINDOW_NORMAL)
+    cv2.imshow("w",inp[:,:,0,0]);  
+    
+
+####proto type pattern
+
+def BCOSFIRE(image,filter1,filter2):
+    x=100;
+    y=100;
+    line1=np.zeros((201,201), dtype=np.uint8);
+    line1[:,x]=255;
+    line2=normalize(line1);
+
+    symm_params=params()
+
+    ###cosfire parameters
+    symm_params['inputfilter']['DoG']['sigmalist']=filter1['sigma']
+    symm_params['COSFIRE']['rholist']=np.arange(0,filter1['len']+2,2)
+    #print(symm_params['COSFIRE']['rholist'])
+    symm_params['COSFIRE']['sigma0'] = filter1['sigma0'] / 6;
+    symm_params['COSFIRE']['alpha'] = filter1['alpha'] / 6;
+    numoriens=12
+
+    symm_params['invariance']['rotation']['psilist'] = np.arange(0,(math.pi)-(math.pi)/numoriens,(math.pi)/numoriens);
+   # print(symm_params['invariance']['rotation']['psilist'])
+    symmfilter=configureCOSFIRE(line2,[y,x],symm_params)
+    
+    
+
+
+image = cv2.imread('F:/3-2/honors-2/DRIVE/test/images/12_test.tif',1)
+
+symmfilter={'sigma':[2.4],'len':8,'sigma0':3,'alpha':0.7}
+asymmfilter={'sigma':1.8,'len':22,'sigma0':2,'alpha':0.1}
+BCOSFIRE(image,symmfilter,asymmfilter)
+
+
+#DoGBankResponse(line2,1,1)
+
+cv2.waitKey(0);
