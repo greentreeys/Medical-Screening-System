@@ -1,5 +1,5 @@
-a=imread('/home/lasan/study/CVIT/Sem8/vessel/pink/1265753352183.JPEG');
-b=imread('/home/lasan/study/CVIT/Sem8/vessel/pink_vss//1265753352183.JPEG');
+a=imread('1265753352183.JPEG');
+b=imread('1265753352183_gt.JPEG');
 c=im2bw(b,0.01);
 d=logical(1-c); %groundtruth
 
