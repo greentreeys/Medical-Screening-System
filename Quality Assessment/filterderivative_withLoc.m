@@ -17,17 +17,17 @@ else
     im=double(im);
 end
 green=im;
-% disp ('Curvature space Lvv is computed.. ')
 
 if ~exist('scale')
     std=[1 2 4 8 16]; %% Number of scale
-    % std=[4]; %% Number of scale
 else
     std=scale;
 end
 
-[xx, yy]= find(mask==1);
-feats=zeros(size(xx,1),25);
+[loc(:,1), loc(:,2)]= find(mask==1);
+feats=zeros(size(loc,1),25);
+
+im = extension(im,mask);% Fundus extension
 
 [tmp num]= size(std);
 epsilon=1e-2;
@@ -36,43 +36,48 @@ Lvv= zeros(size(im,1), size(im,2), size(std,2));
 Lvw= zeros(size(im,1), size(im,2), size(std,2));
 Lww= zeros(size(im,1), size(im,2), size(std,2));
 pos= 1;
+z = 1;
 for k=1:num
     sigma=std(k);
-    %     %% To create Gaussian filter similiar to the one used in gaussgradient
-    %     %% function
+    % To create Gaussian filter similiar to the one used in gaussgradient function
     halfsize=ceil(sigma*sqrt(-2*log(sqrt(2*pi)*sigma*epsilon)));
     sze=2*halfsize+1;
     gauss= fspecial('gaussian',sze,sigma);
     L(:,:,k)= imfilter(im,gauss);
-    
+    subplot(5,5,z), imshow(L(:,:,k),[]);
+    z = z + 1;
     [Lx,Ly]=gaussgradient(im,sigma);
     [Lxx,Lxy]=gaussgradient(Lx,sigma);
     [Lyx,Lyy]=gaussgradient(Ly,sigma);
     
     Lw(:,:,k)= sqrt(Lx.^2+Ly.^2);
-%     size(xx)
-    for c=1:size(xx,1)
-        i= xx(c); j=yy(c);
+    subplot(5,5,z),imshow(Lw(:,:,k),[]);
+    z = z + 1;
+    % Computing numerator of Lvv
+    Lvv_num= (- 2 * Lx .* Lxy .* Ly) + (Lxx .* (Ly.*Ly)) + ((Lx.*Lx).* Lyy);
+    % Computing numerator of Lvw 
+    Lvw_num= (-1*(Lx.*Lx) .* Lxy) + ((Ly.*Ly) .* Lxy) + (Lx.*Ly .*(Lxx-Lyy));
+    % Computing numerator of Lww 
+    Lww_num= ((Lx.*Lx) .* Lxx) + (2* Lx.* Lxy.*Ly) + ((Ly.*Ly) .* Lyy);
+    % Denominator for the computation of filters Lvv, Lvw and Lww 
+    den = (Lx.*Lx+ Ly.*Ly+0.001);
+    subplot(5,5,z), imshow(Lvv_num./den, []);
+    z = z + 1;
+    subplot(5,5,z), imshow(Lvw_num./den, []);
+    z = z +1;
+    subplot(5,5,z), imshow(Lww_num./den, []);
+    z = z + 1;
+    
+    for c=1:size(loc,1)
+        i = loc(c,1); j = loc(c,2);
         feats(c,pos)=L(i,j,k);
         feats(c,pos+1)=Lw(i,j,k);
         % Computation for Lvv
-        factor1= - 2 * Lx(i,j) * Lxy(i,j) * Ly(i,j) + Lxx(i,j) * (Ly(i,j)*Ly(i,j));
-        factor2=  ((Lx(i,j)*Lx(i,j))* Lyy(i,j));
-        feats(c,pos+2)=  (factor1+factor2)/(Lx(i,j)*Lx(i,j)+ Ly(i,j)*Ly(i,j)+0.001);
+        feats(c,pos+2) = Lvv_num(i,j)/den(i,j);
         % Computation for Lvw
-        factor1= - Lx(i,j)^2 * Lxy(i,j) + Ly(i,j)^2 * Lxy(i,j) + Lx(i,j)*Ly(i,j)*(Lxx(i,j)-Lyy(i,j));
-        feats(c,pos+3)=  factor1/((Lx(i,j)^2+ Ly(i,j)^2)+0.001);
-        %%% Computation for Lww
-        factor1= Lx(i,j)^2 * Lxx(i,j) + 2* Lx(i,j)* Lxy(i,j)*Ly(i,j) + Ly(i,j)^2 * Lyy(i,j);
-        feats(c,pos+4)=  factor1/((Lx(i,j)^2+ Ly(i,j)^2)+0.001);
-        
+        feats(c,pos+3) = Lvw_num(i,j)/den(i,j);
+        % Computation for Lww
+        feats(c,pos+4) = Lww_num(i,j)/den(i,j);
     end
     pos=pos+5;
-    %     disp (strcat('scale ',num2str(k),' is completed...'));
 end
-loc=[]; 
-for c=1:size(xx,1)
-    i= xx(c); j=yy(c);
-    loc(c,1)= i; loc(c,2)= j;
-end
-
