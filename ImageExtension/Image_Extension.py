@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 
 
-############part1
+###########part1
 # Load an color image in grayscale and mask  
 img = cv2.imread('E:/cvit/diaretdb1_v_1_1/resources/images/ddb1_fundusimages/image040.png',1);
 mask=cv2.imread('E:/cvit/diaretdb1_v_1_1/resources/images/ddb1_fundusmask/fmask.tif',0);
